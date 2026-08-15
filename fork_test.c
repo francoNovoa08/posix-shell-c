@@ -1,5 +1,6 @@
 #include <stdbool.h>
 #include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
 #include <sys/wait.h>
 #include <unistd.h>
@@ -25,31 +26,37 @@ int main() {
     }
 
     while (token != NULL) {
-      printf("Token: %s\n", token);
       argv[counter] = token;
       token = strtok(NULL, delimiters);
       counter++;
     }
     argv[counter] = NULL;
-    
+
     if (strcmp(argv[0], "exit") == 0) {
       break;
-    }
+    } else if (strcmp(argv[0], "cd") == 0) {
+      if (argv[1] == NULL) {
+        char *home = getenv("HOME");
+        if (home != NULL) {
+          chdir(home);
+        } else {
+          perror("Could not find HOME environment variable");
+        }
 
-    printf("Before fork, my PID is %d\n", getpid());
+      } else if (chdir(argv[1]) != 0) {
+        perror("Failed to change directory");
+      }
+      continue;
+    }
 
     pid_t result = fork();
 
     if (result == 0) {
-      printf("I'm the child, my PID is %d, fork() returned %d\n", getpid(),
-             result);
       execvp(argv[0], argv);
+      perror("execvp");
       return -1;
     } else if (result > 0) {
       wait(NULL);
-      printf(
-          "I'm the parent, my PID is %d, fork() returned %d (my child's PID)\n",
-          getpid(), result);
     } else {
       printf("fork() failed\n");
     }
