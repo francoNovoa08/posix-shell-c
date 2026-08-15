@@ -1,6 +1,6 @@
 .vscode/
 
-fork_test
+shell
 
 # Ignore standard compiled executable outputs
 a.out
