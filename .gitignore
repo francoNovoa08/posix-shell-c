@@ -1,1 +1,9 @@
 .vscode/
+
+fork_test
+
+# Ignore standard compiled executable outputs
+a.out
+*.exe
+*.out
+*.app
