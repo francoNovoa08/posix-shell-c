@@ -46,6 +46,9 @@ int main() {
 
     for (int i = 0; i < command_counter; i++) {
       argv_wrapper[i] = build_argv_wrapper(commands[i]);
+      if (argv_wrapper[i] == NULL) {
+        return -1;
+      }
     }
 
     if (strcmp(argv_wrapper[0]->argv[0], "exit") == 0) {
