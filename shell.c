@@ -1,3 +1,4 @@
+#include "helper.h"
 #include <stdbool.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -5,37 +6,53 @@
 #include <sys/wait.h>
 #include <unistd.h>
 
-int main() {
-  const int SIZE = 100;
+const char *command_delimiters = "|";
 
-  char buffer[SIZE];
-  char *argv[SIZE];
-  const char *delimiters = "  ";
+int main() {
+
+  int pipefd[WRAPPER_SIZE - 1][2];
+
+  Argv_Wrapper *argv_wrapper[WRAPPER_SIZE];
+  char buffer[ARGV_SIZE];
+
   int counter = 0;
+  int command_counter = 0;
 
   while (true) {
-    counter = 0;
+    for (int i = 0; i < command_counter; i++) {
+      free(argv_wrapper[i]);
+    }
+
+    command_counter = 0;
+
     if (fgets(buffer, sizeof(buffer), stdin) == NULL) {
       return -1;
     }
     buffer[strcspn(buffer, "\n")] = '\0';
 
-    char *token = strtok(buffer, delimiters);
-    if (token == NULL) {
+    char *inner_token;
+    char *commands[WRAPPER_SIZE];
+    char *command_token = strtok(buffer, command_delimiters);
+
+    if (command_token == NULL) {
       continue;
     }
 
-    while (token != NULL) {
-      argv[counter] = token;
-      token = strtok(NULL, delimiters);
-      counter++;
-    }
-    argv[counter] = NULL;
+    while (command_token != NULL && command_counter < WRAPPER_SIZE) {
+      commands[command_counter] = command_token;
+      command_counter++;
 
-    if (strcmp(argv[0], "exit") == 0) {
+      command_token = strtok(NULL, command_delimiters);
+    }
+
+    for (int i = 0; i < command_counter; i++) {
+      argv_wrapper[i] = build_argv_wrapper(commands[i]);
+    }
+
+    if (strcmp(argv_wrapper[0]->argv[0], "exit") == 0) {
       break;
-    } else if (strcmp(argv[0], "cd") == 0) {
-      if (argv[1] == NULL) {
+    } else if (strcmp(argv_wrapper[0]->argv[0], "cd") == 0) {
+      if (argv_wrapper[0]->argv[1] == NULL) {
         char *home = getenv("HOME");
         if (home != NULL) {
           chdir(home);
@@ -43,22 +60,53 @@ int main() {
           perror("Could not find HOME environment variable");
         }
 
-      } else if (chdir(argv[1]) != 0) {
+      } else if (chdir(argv_wrapper[0]->argv[1]) != 0) {
         perror("Failed to change directory");
       }
       continue;
     }
 
-    pid_t result = fork();
+    for (int i = 0; i < command_counter - 1; i++) {
+      if (pipe(pipefd[i]) < 0) {
+        perror("Pipe creation failed.");
+        return -1;
+      }
+    }
 
-    if (result == 0) {
-      execvp(argv[0], argv);
-      perror("execvp");
-      return -1;
-    } else if (result > 0) {
+    for (int i = 0; i < command_counter; i++) {
+      pid_t result = fork();
+
+      if (result == 0) {
+        if (i != 0) {
+          if (dup2(pipefd[i - 1][0], STDIN_FILENO) < 0) {
+            perror("Failed to duplicate input file descriptor.");
+            close(pipefd[i][0]);
+            return -1;
+          }
+        }
+
+        if (i != command_counter - 1) {
+          if (dup2(pipefd[i][1], STDOUT_FILENO) < 0) {
+            perror("Failed to duplicate output file descriptor.");
+            close(pipefd[i][1]);
+            return -1;
+          }
+        }
+
+        free_pipes(command_counter, pipefd);
+
+        execvp(argv_wrapper[i]->argv[0], argv_wrapper[i]->argv);
+        perror("execvp");
+        return -1;
+      } else if (result < 0) {
+        printf("fork() failed\n");
+      }
+    }
+
+    free_pipes(command_counter, pipefd);
+
+    for (int j = 0; j < command_counter; j++) {
       wait(NULL);
-    } else {
-      printf("fork() failed\n");
     }
   }
 
