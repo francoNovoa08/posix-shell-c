@@ -15,7 +15,6 @@ int main() {
   Argv_Wrapper *argv_wrapper[WRAPPER_SIZE];
   char buffer[ARGV_SIZE];
 
-  int counter = 0;
   int command_counter = 0;
 
   while (true) {
@@ -30,7 +29,7 @@ int main() {
     }
     buffer[strcspn(buffer, "\n")] = '\0';
 
-    char *inner_token;
+
     char *commands[WRAPPER_SIZE];
     char *command_token = strtok(buffer, command_delimiters);
 
